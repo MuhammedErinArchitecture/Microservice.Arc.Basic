@@ -9,6 +9,9 @@ Amaç; bağımsız servisler, PostgreSQL, Docker, Swagger ve birim testlerle bir
 
 Hızlı test için Postman koleksiyonunu içeri aktarın ve README’deki sıralamayı izleyin.
 
+http://localhost:5081/swagger/index.html (UserService)
+http://localhost:5080/swagger/index.html (ContentService)
+
 /ContentService.Api
 /ContentService.Application
 /ContentService.Domain
