@@ -1,0 +1,436 @@
+{
+  "info": {
+    "name": "Microservice.Arc.Basic - QA Collection",
+    "_postman_id": "b1fb6d3a-9f0e-4e1a-9c2b-qa-collection-001",
+    "description": "Users & Contents microservices end-to-end QA flows (happy + negative). Chain requests, assert statuses, and capture IDs automatically.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "user_base", "value": "http://localhost:5081" },
+    { "key": "content_base", "value": "http://localhost:5080" },
+    { "key": "user_id", "value": "" },
+    { "key": "content_id", "value": "" },
+    { "key": "user_email", "value": "" },
+    { "key": "content_title", "value": "" },
+    { "key": "invalid_author_id", "value": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Ensure deterministic data for duplicate/negative tests",
+          "if (!pm.collectionVariables.get('user_email')) {",
+          "  pm.collectionVariables.set('user_email', `qa.${Date.now()}@example.com`);",
+          "}",
+          "if (!pm.collectionVariables.get('content_title')) {",
+          "  pm.collectionVariables.set('content_title', `QA Post ${Date.now()}`);",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "00 - Health",
+      "item": [
+        {
+          "name": "UserService /healthz",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{user_base}}/healthz", "host": ["{{user_base}}"], "path": ["healthz"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.code === 200);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "ContentService /healthz",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{content_base}}/healthz", "host": ["{{content_base}}"], "path": ["healthz"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.code === 200);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 - Users",
+      "item": [
+        {
+          "name": "Create User (save id)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{user_base}}/api/v1/users", "host": ["{{user_base}}"], "path": ["api","v1","users"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Ada\",\n  \"lastName\": \"Lovelace\",\n  \"email\": \"{{user_email}}\",\n  \"role\": \"Author\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.code === 201);",
+                  "const b = pm.response.json();",
+                  "pm.expect(b).to.have.property('id');",
+                  "pm.collectionVariables.set('user_id', b.id);",
+                  "pm.test('Email echoed', () => pm.expect(b.email).to.eql(pm.collectionVariables.get('user_email')));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create User (duplicate email → 409)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{user_base}}/api/v1/users", "host": ["{{user_base}}"], "path": ["api","v1","users"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Ada\",\n  \"lastName\": \"Lovelace\",\n  \"email\": \"{{user_email}}\",\n  \"role\": \"Author\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.code === 409);",
+                  "const b = pm.response.json();",
+                  "pm.test('ProblemDetails has title', () => pm.expect(b.title).to.match(/email/i));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get User by Id (200)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{user_base}}/api/v1/users/{{user_id}}", "host": ["{{user_base}}"], "path": ["api","v1","users","{{user_id}}"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.code === 200);",
+                  "const b = pm.response.json();",
+                  "pm.test('Same id', () => pm.expect(b.id).to.eql(pm.collectionVariables.get('user_id')));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Users (200)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{user_base}}/api/v1/users?page=1&pageSize=10&search=ada",
+              "host": ["{{user_base}}"],
+              "path": ["api","v1","users"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "10" },
+                { "key": "search", "value": "ada" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.code === 200);",
+                  "const b = pm.response.json();",
+                  "pm.expect(b.items || b.Items).to.be.an('array');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update User (200)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{user_base}}/api/v1/users/{{user_id}}", "host": ["{{user_base}}"], "path": ["api","v1","users","{{user_id}}"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Ada\",\n  \"lastName\": \"Lovelace\",\n  \"role\": \"Author\",\n  \"status\": \"Active\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.code === 200);",
+                  "const b = pm.response.json();",
+                  "pm.test('Role/Status ok', () => { pm.expect(b.role).to.eql('Author'); pm.expect(b.status).to.match(/active/i); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete User (204)",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{user_base}}/api/v1/users/{{user_id}}", "host": ["{{user_base}}"], "path": ["api","v1","users","{{user_id}}"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('204 No Content', () => pm.response.code === 204);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get User by Id after Delete (404)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{user_base}}/api/v1/users/{{user_id}}", "host": ["{{user_base}}"], "path": ["api","v1","users","{{user_id}}"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.code === 404);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 - Contents",
+      "item": [
+        {
+          "name": "Create Content (valid author, save id) (201)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{content_base}}/api/v1/contents", "host": ["{{content_base}}"], "path": ["api","v1","contents"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"{{content_title}}\",\n  \"body\": \"body long enough for test\",\n  \"authorId\": \"{{user_id}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.code === 201);",
+                  "const b = pm.response.json();",
+                  "pm.expect(b).to.have.property('id');",
+                  "pm.collectionVariables.set('content_id', b.id);",
+                  "pm.test('Title echoed', () => pm.expect(b.title).to.eql(pm.collectionVariables.get('content_title')));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Content with same title (Slug conflict → 409)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{content_base}}/api/v1/contents", "host": ["{{content_base}}"], "path": ["api","v1","contents"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"{{content_title}}\",\n  \"body\": \"another body\",\n  \"authorId\": \"{{user_id}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.code === 409);",
+                  "const b = pm.response.json();",
+                  "pm.test('ProblemDetails title mentions slug', () => pm.expect(b.title).to.match(/slug/i));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Content (invalid author → 422)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{content_base}}/api/v1/contents", "host": ["{{content_base}}"], "path": ["api","v1","contents"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Invalid Author Test\",\n  \"body\": \"body long enough\",\n  \"authorId\": \"{{invalid_author_id}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.code === 422);",
+                  "const b = pm.response.json();",
+                  "pm.test('ProblemDetails title mentions author', () => pm.expect(b.title).to.match(/author/i));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Content by Id (200)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{content_base}}/api/v1/contents/{{content_id}}", "host": ["{{content_base}}"], "path": ["api","v1","contents","{{content_id}}"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.code === 200);",
+                  "const b = pm.response.json();",
+                  "pm.test('Same id', () => pm.expect(b.id).to.eql(pm.collectionVariables.get('content_id')));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Contents (200)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{content_base}}/api/v1/contents?page=1&pageSize=10&search=",
+              "host": ["{{content_base}}"],
+              "path": ["api","v1","contents"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "10" },
+                { "key": "search", "value": "" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.code === 200);",
+                  "const b = pm.response.json();",
+                  "pm.expect(b.items || b.Items).to.be.an('array');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Content (200)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{content_base}}/api/v1/contents/{{content_id}}", "host": ["{{content_base}}"], "path": ["api","v1","contents","{{content_id}}"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"{{content_title}}\",\n  \"body\": \"updated body\",\n  \"status\": \"Published\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.code === 200);",
+                  "const b = pm.response.json();",
+                  "pm.test('Status updated', () => pm.expect(b.status || b.Status).to.match(/published/i));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Content (204)",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{content_base}}/api/v1/contents/{{content_id}}", "host": ["{{content_base}}"], "path": ["api","v1","contents","{{content_id}}"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('204 No Content', () => pm.response.code === 204);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Content by Id after Delete (404)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{content_base}}/api/v1/contents/{{content_id}}", "host": ["{{content_base}}"], "path": ["api","v1","contents","{{content_id}}"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.code === 404);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
