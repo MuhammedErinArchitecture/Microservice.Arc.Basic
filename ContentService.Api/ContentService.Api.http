@@ -1,0 +1,31 @@
+@host = http://localhost:5080  
+
+### Create
+POST {{host}}/api/v1/contents
+Content-Type: application/json
+
+{
+  "title": "Intro to Microservices",
+  "body": "First article body ...",
+  "authorId": "11111111-1111-1111-1111-111111111111"
+}
+
+### Get by id (oluþan id’yi buraya yapýþtýr)
+@id = c371b37c-826d-48ca-9b64-d553a8cfe70da
+GET {{host}}/api/v1/contents/{{id}}
+
+### List
+GET {{host}}/api/v1/contents?page=1&pageSize=10&search=intro&orderBy=-created
+
+### Update
+PUT {{host}}/api/v1/contents/{{id}}
+Content-Type: application/json
+
+{
+  "title": "Intro to Microservices (rev)",
+  "body": "Revised...",
+  "status": "Published"
+}
+
+### Delete
+DELETE {{host}}/api/v1/contents/{{id}}

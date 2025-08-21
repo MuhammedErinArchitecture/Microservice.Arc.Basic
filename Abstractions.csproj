@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<AssemblyName>BuildingBlocks.Abstractions</AssemblyName>
+	</PropertyGroup>
+</Project>
